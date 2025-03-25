@@ -1,6 +1,7 @@
 // This first test only tries to initiate the VulkanContext object and check if the queues are created correctly.
 
 #include "VulkanContext.hpp"
+
 #include <cassert>
 #include <iostream>
 

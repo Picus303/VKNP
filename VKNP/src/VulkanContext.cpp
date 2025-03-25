@@ -1,7 +1,5 @@
 #include "VulkanContext.hpp"
 
-#include <cstring>
-
 
 
 VulkanContext::VulkanContext() {
@@ -27,25 +25,31 @@ VulkanContext::~VulkanContext() {
     }
 }
 
+
 void VulkanContext::createInstance() {
 	// Define the application info
-    VkApplicationInfo appInfo{};
-    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = "VKNP";
-    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.pEngineName = "VKNP_ENGINE";
-    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_1;
+	VkApplicationInfo appInfo{};
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.pApplicationName = "VKNP";
+	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.pEngineName = "VKNP_ENGINE";
+	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.apiVersion = VK_API_VERSION_1_1;
 
 	// Define instanciation info
-    VkInstanceCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    createInfo.pApplicationInfo = &appInfo;
+	VkInstanceCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	createInfo.pApplicationInfo = &appInfo;
 
-	// Create the instance (ToDo: add instance extensions and layers)
-    if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-        throw std::runtime_error("Unable to create Vulkan instance !");
-    }
+	// Load instance extensions
+	std::vector<const char*> enabledExtensions(instanceExtensions.begin(), instanceExtensions.end());
+	createInfo.enabledExtensionCount = static_cast<uint32_t>(enabledExtensions.size());
+	createInfo.ppEnabledExtensionNames = enabledExtensions.data();
+
+	// Create the instance
+	if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
+		throw std::runtime_error("Unable to create Vulkan instance !");
+	}
 }
 
 
@@ -100,10 +104,17 @@ void VulkanContext::createDevicesAndQueues() {
         createInfo.queueCreateInfoCount = 1;
         createInfo.pQueueCreateInfos = &queueCreateInfo;
 
-        // Create the logical device (ToDo: add device extensions and layers)
-        if (vkCreateDevice(physicalDevices[i], &createInfo, nullptr, &devices[i]) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create logical device for physical device " + std::to_string(i));
-        }
+		// Specify the device extensions to enable
+		VkPhysicalDeviceFeatures deviceFeatures{};
+		std::vector<const char*> enabledExtensions(deviceExtensions.begin(), deviceExtensions.end());
+		createInfo.enabledExtensionCount = static_cast<uint32_t>(enabledExtensions.size());
+		createInfo.ppEnabledExtensionNames = enabledExtensions.data();
+		createInfo.pEnabledFeatures = &deviceFeatures;
+
+		// Create the logical device
+		if (vkCreateDevice(physicalDevices[i], &createInfo, nullptr, &devices[i]) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to create logical device for physical device " + std::to_string(i));
+		}
         vkGetDeviceQueue(devices[i], queueFamilyIndices[i], 0, &queues[i]);
     }
 }
@@ -129,7 +140,7 @@ void VulkanContext::createCommandPools() {
 }
 
 
-void VulkanContext::createBufferAndMemory(VkDevice device, VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory& memory) {
+void VulkanContext::createBufferAndMemory(VkDevice device, VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory& memory) const {
     // Define the buffer info
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -180,4 +191,23 @@ void VulkanContext::createBufferAndMemory(VkDevice device, VkDeviceSize size, Vk
     }
 	// Bind the buffer to the memory
     vkBindBufferMemory(device, buffer, memory, 0);
+}
+
+
+std::pair<VkDeviceSize, VkDeviceSize> VulkanContext::getMemoryUsage(VkPhysicalDevice device) const {
+    VkPhysicalDeviceMemoryBudgetPropertiesEXT budgetProps = {};
+	budgetProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+
+	VkPhysicalDeviceMemoryProperties2 props2 = {};
+	props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+	props2.pNext = &budgetProps;
+	
+    vkGetPhysicalDeviceMemoryProperties2(device, &props2);
+
+    for (uint32_t i = 0; i < props2.memoryProperties.memoryHeapCount; ++i) {
+        if (props2.memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
+            return { budgetProps.heapUsage[i], budgetProps.heapBudget[i] };
+        }
+    }
+    return {0, 0};
 }

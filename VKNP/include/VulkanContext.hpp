@@ -25,13 +25,21 @@ public:
     const std::vector<VkCommandPool>& getCommandPools() const { return commandPools; }
 
 	// Memory management
-    void createBufferAndMemory(VkDevice device, VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory& memory);
+    void createBufferAndMemory(VkDevice device, VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory& memory) const;
+	std::pair<VkDeviceSize, VkDeviceSize> getMemoryUsage(VkPhysicalDevice device) const;
 
 private:
     void createInstance();
     void pickPhysicalDevices();
     void createDevicesAndQueues();
     void createCommandPools();
+
+	const std::vector<const char*> instanceExtensions = {};
+
+	const std::vector<const char*> deviceExtensions = {
+		VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
+		VK_EXT_MEMORY_BUDGET_EXTENSION_NAME,
+	};
 
     VkInstance instance = VK_NULL_HANDLE;
 
