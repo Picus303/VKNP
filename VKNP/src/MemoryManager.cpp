@@ -5,6 +5,8 @@
 #include <iostream>
 #include <algorithm>
 
+#define ALLOCATION_BLOCK_SIZE 4096
+
 
 // #################################################################################################
 // ###   MemoryManager: Singleton implementation
@@ -19,7 +21,7 @@ MemoryManager& MemoryManager::getManager() {
 
 
 void MemoryManager::init(VulkanContext* context) {
-	std::lock_guard<std::mutex> lock(managerMutex);
+	std::lock_guard<std::recursive_mutex> lock(managerMutex);
 	if (context == nullptr) {
 		throw std::runtime_error("Memory Manager initialized with an invalid Vulkan context");
 	}
@@ -30,7 +32,7 @@ void MemoryManager::init(VulkanContext* context) {
 
 
 void MemoryManager::destroy() {
-	std::lock_guard<std::mutex> lock(managerMutex);
+	std::lock_guard<std::recursive_mutex> lock(managerMutex);
 
 	// Destroy active buffers
 	for (auto& kv : activeAllocations) {
@@ -55,7 +57,7 @@ void MemoryManager::destroy() {
 
 // Used by Tensors to get a buffer
 MemoryHandle MemoryManager::getBuffer(VkDeviceSize size, uint32_t requestedDeviceIndex) {
-	std::lock_guard<std::mutex> lock(managerMutex);
+	std::lock_guard<std::recursive_mutex> lock(managerMutex);
 
 	// Check initialization and device index
 	if (vkContext == nullptr) {
@@ -88,15 +90,40 @@ MemoryHandle MemoryManager::getBuffer(VkDeviceSize size, uint32_t requestedDevic
 		}
 	}
 
+	// Check if the cache needs to be emptied
+	VkPhysicalDevice physDevice = vkContext->getPhysicalDevices()[requestedDeviceIndex];
+    auto [usedMemory, totalMemory] = vkContext->getMemoryUsage(physDevice);
+    
+	VkDeviceSize freeMemory = totalMemory - usedMemory;
+	VkDeviceSize alignedSize = ((size + ALLOCATION_BLOCK_SIZE - 1) / ALLOCATION_BLOCK_SIZE) * ALLOCATION_BLOCK_SIZE;
+
+    if (freeMemory < alignedSize) {
+        // Compute total cache size
+        VkDeviceSize cacheSize = 0;
+        for (const auto& kv : cachedAllocations) {
+            cacheSize += kv.second.size;
+        }
+
+		// Check if enough memory can be freed from the cache
+		VkDeviceSize needed = alignedSize - freeMemory;
+        if (cacheSize >= needed) {
+            emptyCache(needed);
+        } else {
+			throw std::runtime_error("Insufficient GPU memory available to allocate buffer. "
+									 "Memory required: " + std::to_string(alignedSize) + " bytes, "
+									 "Memory available: " + std::to_string(freeMemory) + " bytes, "
+									 "Memory available (Cache): " + std::to_string(cacheSize) + " bytes.");
+        }
+    }
+
 	// Create a new buffer
 	return createAllocation(size, requestedDeviceIndex);
-	// ToDo: Check if there is enough memory available and empty the cache if needed
 }
 
 
 // Used when a view of an existing buffer is created
 void MemoryManager::acquireBuffer(const MemoryHandle& handle) {
-	std::lock_guard<std::mutex> lock(managerMutex);
+	std::lock_guard<std::recursive_mutex> lock(managerMutex);
 
 	// Check if the handle is valid
 	auto it = activeAllocations.find(handle.id);
@@ -110,7 +137,7 @@ void MemoryManager::acquireBuffer(const MemoryHandle& handle) {
 
 // Used when a view of an existing buffer is destroyed
 void MemoryManager::releaseBuffer(const MemoryHandle& handle) {
-	std::lock_guard<std::mutex> lock(managerMutex);
+	std::lock_guard<std::recursive_mutex> lock(managerMutex);
 
 	// Check if the handle is valid
 	auto kv = activeAllocations.find(handle.id);
@@ -141,7 +168,7 @@ void MemoryManager::releaseBuffer(const MemoryHandle& handle) {
 // Remove the requested number of bytes from the cache
 // If bytesToFree is 0, the entire cache is emptied
 void MemoryManager::emptyCache(VkDeviceSize bytesToFree) {
-	std::lock_guard<std::mutex> lock(managerMutex);
+	std::lock_guard<std::recursive_mutex> lock(managerMutex);
 
 	if (bytesToFree == 0) {
 		// Collect the ids of the cached buffers

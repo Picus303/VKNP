@@ -87,5 +87,5 @@ private:
 	std::vector<VkDeviceSize> deviceCachedMemoryUsage;
 
 	// Mutex to protect the memory manager
-	std::mutex managerMutex;
+	std::recursive_mutex managerMutex;
 };
