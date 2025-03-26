@@ -1,4 +1,4 @@
-// This second test aims at testing the memory management methods of the VulkanContext class.
+// Verifies the memory management methods of the VulkanContext class
 
 #include "VulkanContext.hpp"
 
@@ -6,10 +6,12 @@
 #include <cassert>
 #include <iostream>
 
+#define ALLOCATION_SIZE 1024	// Note: Vulkan seams to allocate blocks of 4096 bytes so this won't be the actual memory usage
+
 
 int main() {
 	try {
-		VulkanContext context;
+		VulkanContext& context = VulkanContext::getContext();
 
 		// Get the logical and physical devices
 		auto physicalDevices = context.getPhysicalDevices();
@@ -22,8 +24,8 @@ int main() {
 			// Create a buffer and allocate memory
 			VkBuffer buffer;
 			VkDeviceMemory memory;
-			context.createBufferAndMemory(logicalDevices[0], 1024, buffer, memory);
-			std::cout << "Buffer and memory created !" << std::endl;
+			context.createBufferAndMemory(logicalDevices[0], ALLOCATION_SIZE, buffer, memory);
+			std::cout << "Buffer and memory created" << std::endl;
 
 			// Get memory usage again
 			auto [used2, budget2] = context.getMemoryUsage(physicalDevice);

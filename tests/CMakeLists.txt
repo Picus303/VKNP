@@ -19,4 +19,8 @@ foreach(TEST_SOURCE ${TEST_SOURCES})
 endforeach()
 
 # Add test dependencies
-set_tests_properties(MemoryTest PROPERTIES DEPENDS InitTest)
+set_tests_properties(ContextMemoryTest PROPERTIES DEPENDS ContextInitTest)
+set_tests_properties(ManagerInitTest PROPERTIES DEPENDS ContextInitTest)
+set_tests_properties(ManagerReuseTest PROPERTIES DEPENDS ManagerInitTest)
+set_tests_properties(ManagerCountTest PROPERTIES DEPENDS ManagerInitTest)
+set_tests_properties(ManagerEmptyTest PROPERTIES DEPENDS ManagerInitTest)

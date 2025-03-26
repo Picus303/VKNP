@@ -2,6 +2,20 @@
 
 
 
+
+// #################################################################################################
+// ###   VulkanContext: Singleton implementation
+// #################################################################################################
+
+
+// Singleton access
+VulkanContext& VulkanContext::getContext() {
+	static VulkanContext s_instance;
+	return s_instance;
+}
+
+
+// Initialize all components
 VulkanContext::VulkanContext() {
     createInstance();
     pickPhysicalDevices();
@@ -26,6 +40,11 @@ VulkanContext::~VulkanContext() {
 }
 
 
+// #################################################################################################
+// ###   VulkanContext: Initialization methods
+// #################################################################################################
+
+
 void VulkanContext::createInstance() {
 	// Define the application info
 	VkApplicationInfo appInfo{};
@@ -48,17 +67,16 @@ void VulkanContext::createInstance() {
 
 	// Create the instance
 	if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-		throw std::runtime_error("Unable to create Vulkan instance !");
+		throw std::runtime_error("Unable to create Vulkan instance");
 	}
 }
 
 
 void VulkanContext::pickPhysicalDevices() {
 	// Get the number of physical devices
-    uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
     if (deviceCount == 0) {
-        throw std::runtime_error("No GPU with Vulkan support found !");
+        throw std::runtime_error("No GPU with Vulkan support found");
     }
     std::vector<VkPhysicalDevice> allDevices(deviceCount);
     vkEnumeratePhysicalDevices(instance, &deviceCount, allDevices.data());
@@ -79,7 +97,7 @@ void VulkanContext::pickPhysicalDevices() {
         }
     }
     if (physicalDevices.empty()) {
-        throw std::runtime_error("No GPU with compute queue found !");
+        throw std::runtime_error("No GPU with compute queue found");
     }
 }
 
@@ -140,6 +158,11 @@ void VulkanContext::createCommandPools() {
 }
 
 
+// #################################################################################################
+// ###   VulkanContext: Memory management
+// #################################################################################################
+
+
 void VulkanContext::createBufferAndMemory(VkDevice device, VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory& memory) const {
     // Define the buffer info
     VkBufferCreateInfo bufferInfo{};
@@ -152,7 +175,7 @@ void VulkanContext::createBufferAndMemory(VkDevice device, VkDeviceSize size, Vk
 
 	// Create the buffer
     if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create buffer !");
+        throw std::runtime_error("Failed to create buffer");
     }
 
     // Get memory requirements
@@ -176,7 +199,7 @@ void VulkanContext::createBufferAndMemory(VkDevice device, VkDeviceSize size, Vk
         }
     }
     if (!found) {
-        throw std::runtime_error("No valid memory type found for the buffer !");
+        throw std::runtime_error("No valid memory type found for the buffer");
     }
 
 	// Define the memory allocation info
@@ -187,7 +210,7 @@ void VulkanContext::createBufferAndMemory(VkDevice device, VkDeviceSize size, Vk
 
 	// Allocate memory for the buffer
     if (vkAllocateMemory(device, &allocInfo, nullptr, &memory) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate memory for the buffer !");
+        throw std::runtime_error("Failed to allocate memory for the buffer");
     }
 	// Bind the buffer to the memory
     vkBindBufferMemory(device, buffer, memory, 0);
@@ -195,17 +218,19 @@ void VulkanContext::createBufferAndMemory(VkDevice device, VkDeviceSize size, Vk
 
 
 std::pair<VkDeviceSize, VkDeviceSize> VulkanContext::getMemoryUsage(VkPhysicalDevice device) const {
+	// Get the memory budget properties
     VkPhysicalDeviceMemoryBudgetPropertiesEXT budgetProps = {};
 	budgetProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
 
+	// Get the memory properties of the physical device
 	VkPhysicalDeviceMemoryProperties2 props2 = {};
 	props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
 	props2.pNext = &budgetProps;
-	
+
     vkGetPhysicalDeviceMemoryProperties2(device, &props2);
 
     for (uint32_t i = 0; i < props2.memoryProperties.memoryHeapCount; ++i) {
-        if (props2.memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
+        if (props2.memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {	// We are interested in the local memory only
             return { budgetProps.heapUsage[i], budgetProps.heapBudget[i] };
         }
     }

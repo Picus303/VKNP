@@ -1,4 +1,4 @@
-// This first test only tries to initiate the VulkanContext object and check if the queues are created correctly.
+// Verifies that the VulkanContext class can be initialized without errors
 
 #include "VulkanContext.hpp"
 
@@ -8,7 +8,8 @@
 
 int main() {
     try {
-        VulkanContext context;
+        VulkanContext& context = VulkanContext::getContext();
+        (void)context.getInstance();    // Avoid warning for unused variable
     } catch (const std::runtime_error& e) {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
